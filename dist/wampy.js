@@ -246,6 +246,12 @@ function () {
       helloCustomDetails: null,
 
       /**
+       * Validation of the topic URI structure
+       * @type {string} - strict or loose
+       */
+      uriValidation: 'strict',
+
+      /**
        * Authentication id to use in challenge
        * @type {string}
        */
@@ -405,7 +411,42 @@ function () {
   }, {
     key: "_isPlainObject",
     value: function _isPlainObject(obj) {
-      return !!obj && obj.constructor === Object;
+      if (!this._isObject(obj)) {
+        return false;
+      } // If has modified constructor
+
+
+      var ctor = obj.constructor;
+
+      if (typeof ctor !== 'function') {
+        return false;
+      } // If has modified prototype
+
+
+      var prot = ctor.prototype;
+
+      if (this._isObject(prot) === false) {
+        return false;
+      } // If constructor does not have an Object-specific method
+
+
+      if (prot.hasOwnProperty('isPrototypeOf') === false) {
+        return false;
+      }
+
+      return true;
+    }
+    /**
+     * Check if value is an object
+     * @param obj
+     * @returns {boolean}
+     * @private
+     */
+
+  }, {
+    key: "_isObject",
+    value: function _isObject(obj) {
+      return obj !== null && _typeof(obj) === 'object' && Array.isArray(obj) === false && Object.prototype.toString.call(obj) === '[object Object]';
     }
     /**
      * Fix websocket protocols based on options
@@ -467,8 +508,19 @@ function () {
   }, {
     key: "_validateURI",
     value: function _validateURI(uri, patternBased, allowWAMP) {
-      var reBase = /^([0-9a-zA-Z_]+\.)*([0-9a-zA-Z_]+)$/;
-      var rePattern = /^([0-9a-zA-Z_]+\.{1,2})*([0-9a-zA-Z_]+)$/;
+      var reBase;
+      var rePattern;
+
+      if (this._options.uriValidation === 'strict') {
+        reBase = /^([0-9a-zA-Z_]+\.)*([0-9a-zA-Z_]+)$/;
+        rePattern = /^([0-9a-zA-Z_]+\.{1,2})*([0-9a-zA-Z_]+)$/;
+      } else if (this._options.uriValidation === 'loose') {
+        reBase = /^([^\s.#]+\.)*([^\s.#]+)$/;
+        rePattern = /^([^\s.#]+\.{1,2})*([^\s.#]+)$/;
+      } else {
+        return false;
+      }
+
       var re = patternBased ? rePattern : reBase;
 
       if (allowWAMP) {
@@ -851,7 +903,8 @@ function () {
               if (_this3._requests[data[1]]) {
                 _this3._subscriptions[_this3._requests[data[1]].topic] = _this3._subscriptions[data[2]] = {
                   id: data[2],
-                  callbacks: [_this3._requests[data[1]].callbacks.onEvent]
+                  callbacks: [_this3._requests[data[1]].callbacks.onEvent],
+                  advancedOptions: _this3._requests[data[1]].advancedOptions
                 };
 
                 _this3._subsTopics.add(_this3._requests[data[1]].topic);
@@ -1158,7 +1211,7 @@ function () {
           i = subs[topic].callbacks.length;
 
           while (i--) {
-            this.subscribe(topic, subs[topic].callbacks[i]);
+            this.subscribe(topic, subs[topic].callbacks[i], subs[topic].advancedOptions);
           }
         }
       } catch (err) {
@@ -1397,7 +1450,8 @@ function () {
         reqId = this._getReqId();
         this._requests[reqId] = {
           topic: topicURI,
-          callbacks: callbacks
+          callbacks: callbacks,
+          advancedOptions: advancedOptions
         }; // WAMP SPEC: [SUBSCRIBE, Request|id, Options|dict, Topic|uri]
 
         this._send([_constants.WAMP_MSG_SPEC.SUBSCRIBE, reqId, options, topicURI]);
